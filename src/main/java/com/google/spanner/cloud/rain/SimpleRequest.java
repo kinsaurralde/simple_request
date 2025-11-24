@@ -47,13 +47,13 @@ public final class SimpleRequest {
     }
   }
 
-  public static void insertOrUpdateRandomBytes(DatabaseClient dbClient, int bytesPerCol) {
+  public static void insertOrUpdateRandomBytes(DatabaseClient dbClient, int i) {
     Random random = new Random();
 
     Mutation mutation =
         Mutation.newInsertOrUpdateBuilder("LargeColumns")
             .set("Key")
-            .to(0)
+            .to(i)
             .set("Col0")
             .to("test_string 9/8 18:05")
             .build();
@@ -61,12 +61,15 @@ public final class SimpleRequest {
     logger.log(Level.INFO, "Finished writing random bytes to key 0");
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws InterruptedException {
+    int numRequests = 1;
     boolean fallbackEnabled = false;
     for (String arg : args) {
+      if (arg.startsWith("num-requests=")) {
+        numRequests = Integer.parseInt(arg.substring(arg.indexOf("=") + 1));
+      }
       if ("fallback-enabled".equals(arg)) {
         fallbackEnabled = true;
-        break;
       }
     }
 
@@ -124,8 +127,11 @@ public final class SimpleRequest {
       DatabaseClient dbClient =
           spanner.getDatabaseClient(DatabaseId.of(projectId, instanceId, databaseId));
 
-      // createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
-      insertOrUpdateRandomBytes(dbClient, bytesPerCol);
+      //      createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
+      for (int i = 0; i < numRequests; i++) {
+        insertOrUpdateRandomBytes(dbClient, i);
+        Thread.sleep(1000);
+      }
 
     } catch (Exception e) {
       logger.log(Level.SEVERE, "An error occurred: " + e.getMessage(), e);
