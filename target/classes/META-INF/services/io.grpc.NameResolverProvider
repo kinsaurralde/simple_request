@@ -1,0 +1,2 @@
+io.grpc.googleapis.GoogleCloudToProdNameResolverProvider
+io.grpc.googleapis.GoogleCloudToProdExperimentalNameResolverProvider
