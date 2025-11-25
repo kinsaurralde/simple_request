@@ -58,7 +58,7 @@ public final class SimpleRequest {
             .to("test_string 9/8 18:05")
             .build();
     dbClient.write(Arrays.asList(mutation));
-    logger.log(Level.INFO, "Finished writing random bytes to key 0");
+    logger.log(Level.INFO, "Finished writing random bytes to key " + Integer.toString(i));
   }
 
   public static void main(String[] args) throws InterruptedException {
