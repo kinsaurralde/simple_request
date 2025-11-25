@@ -91,5 +91,5 @@ java_binary(
 	"@maven//:io_opencensus_opencensus_exporter_trace_stackdriver",
         "@maven//:com_google_api_grpc_proto_google_common_protos",
         "@maven//:io_opencensus_opencensus_contrib_grpc_metrics",
-    ],
+        ],
 )

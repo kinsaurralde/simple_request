@@ -89,17 +89,13 @@ public final class SimpleRequest {
             + " bytesPerCol: "
             + bytesPerCol);
 
-    logger.log(Level.INFO, "Classloader for SimpleRequest: " + SimpleRequest.class.getClassLoader());
-    logger.log(
-        Level.INFO,
-        "Classloader for NameResolverProvider: "
-            + io.grpc.NameResolverProvider.class.getClassLoader());
-    logger.log(
-        Level.INFO, "Classloader for Message: " + com.google.protobuf.Message.class.getClassLoader());
-
     String targetEndpoint = "spanner.googleapis.com:443";
-    ManagedChannelBuilder<?> dpBuilder = ManagedChannelBuilder.forTarget(targetEndpoint);
+    String dpTargetEndpoint = "google-c2p:///spanner.googleapis.com";
+    String dpDevelTargetEndpoint = "google-c2p:///staging-wrenchworks.sandbox.googleapis.com";
+    ManagedChannelBuilder<?> dpBuilder = ManagedChannelBuilder.forTarget(dpDevelTargetEndpoint);
     ManagedChannelBuilder<?> cpBuilder = ManagedChannelBuilder.forTarget(targetEndpoint);
+    logger.log(Level.INFO, "dpTargetEndpoint: " + dpTargetEndpoint);
+    logger.log(Level.INFO, "cpTargetEndpoint: " + targetEndpoint);
 
     ManagedChannel eefChannel = null;
     SpannerOptions.Builder spannerOptionsBuilder = SpannerOptions.newBuilder().setProjectId(projectId);
@@ -114,6 +110,7 @@ public final class SimpleRequest {
       logger.log(Level.INFO, "GcpFallbackChannel enabled.");
       TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(GrpcTransportChannel.create(eefChannel));
       spannerOptionsBuilder.setChannelProvider(channelProvider);
+      spannerOptionsBuilder.enableGrpcGcpExtension(); // Enable gRPC-GCP extension
     } else {
       logger.log(Level.INFO, "GcpFallbackChannel disabled. Using default channel provider.");
     }
@@ -121,13 +118,15 @@ public final class SimpleRequest {
     SpannerOptions spannerOptions = spannerOptionsBuilder.build();
     logger.log(Level.INFO, "Using credentials: " + spannerOptions.getCredentials());
     Spanner spanner = spannerOptions.getService();
+    logger.log(Level.INFO, "Is direct access enabled: " + spannerOptions.isEnableDirectAccess());
+    logger.log(Level.INFO, "Spanner Endpoint: " + spannerOptions.getEndpoint());
 
     try {
       DatabaseAdminClient dbAdminClient = spanner.getDatabaseAdminClient();
       DatabaseClient dbClient =
           spanner.getDatabaseClient(DatabaseId.of(projectId, instanceId, databaseId));
 
-      //      createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
+            createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
       for (int i = 0; i < numRequests; i++) {
         insertOrUpdateRandomBytes(dbClient, i);
         Thread.sleep(1000);
