@@ -21,9 +21,51 @@ import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+
+
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.api.gax.grpc.GrpcTransportChannel;
+import io.grpc.auth.MoreCallCredentials;
+import com.google.api.gax.rpc.FixedTransportChannelProvider;
+import com.google.api.gax.rpc.TransportChannelProvider;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.grpc.fallback.GcpFallbackChannel;
+import com.google.cloud.grpc.fallback.GcpFallbackChannelOptions;
+import com.google.cloud.spanner.Spanner;
+import com.google.cloud.spanner.SpannerOptions;
+import com.google.api.gax.grpc.GrpcTransportChannel;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+
+import io.grpc.Grpc;
+import io.grpc.alts.AltsChannelCredentials;
+import io.grpc.ChannelCredentials;
+import io.grpc.CallCredentials;
+import io.grpc.alts.GoogleDefaultChannelCredentials;
+import com.google.auth.oauth2.ComputeEngineCredentials;
+
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+// Add these imports to your file for the metrics configuration:
+import com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry;
+import java.util.Collections;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import java.time.Duration;
+import com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
+
 /** */
 public final class SimpleRequest {
   private static final Logger logger = Logger.getLogger(SimpleRequest.class.getName());
+  private static ManagedChannel eefChannel = null; // Declare here for access in finally
 
   private SimpleRequest() {}
 
@@ -57,11 +99,118 @@ public final class SimpleRequest {
             .set("Col0")
             .to("test_string 9/8 18:05")
             .build();
-    dbClient.write(Arrays.asList(mutation));
+    try {
+      dbClient.write(Arrays.asList(mutation));
+    } catch (Exception e) {
+      logger.log(Level.INFO, "Exception during insertOrUpdateRandomBytes: " + e.getCause().getMessage());
+    }
     logger.log(Level.INFO, "Finished writing random bytes to key " + Integer.toString(i));
   }
 
-  public static void main(String[] args) throws InterruptedException {
+
+
+  public static CallCredentials createHardBoundTokensCallCredentials(
+	ComputeEngineCredentials credentials,
+        ComputeEngineCredentials.GoogleAuthTransport googleAuthTransport,
+        ComputeEngineCredentials.BindingEnforcement bindingEnforcement) {
+      ComputeEngineCredentials.Builder credsBuilder =
+          ((ComputeEngineCredentials) credentials).toBuilder();
+      // We only set scopes and HTTP transport factory from the original credentials because
+      // only those are used in gRPC CallCredentials to fetch request metadata. We create a new
+      // credential
+      // via {@code newBuilder} as opposed to {@code toBuilder} because we don't want a reference to
+      // the
+      // access token held by {@code credentials}; we want this new credential to fetch a new access
+      // token
+      // from MDS using the {@param googleAuthTransport} and {@param bindingEnforcement}.
+      return MoreCallCredentials.from(
+          ComputeEngineCredentials.newBuilder()
+              .setScopes(credsBuilder.getScopes())
+              .setHttpTransportFactory(credsBuilder.getHttpTransportFactory())
+              .setGoogleAuthTransport(googleAuthTransport)
+              .setBindingEnforcement(bindingEnforcement)
+              .build());
+    }
+
+
+
+
+
+/**
+  * Builds the SpannerOptions, configuring the GcpFallbackChannel if enabled.
+  */
+public static SpannerOptions buildSpannerOptions(String projectId, boolean fallbackEnabled) throws IOException {
+    SpannerOptions.Builder spannerOptionsBuilder = SpannerOptions.newBuilder().setProjectId(projectId);
+    System.out.println("buildSpannerOptions projectId: " + projectId);
+    // --- METRICS CONFIGURATION START ---
+
+    // 1. Set up an exporter. For production, you would use a Google Cloud Monitoring exporter.
+    // For this example, we use a simple in-memory exporter.
+    MetricExporter exporter = GoogleCloudMetricExporter.createWithDefaultConfiguration();
+    SdkMeterProvider meterProvider = SdkMeterProvider.builder()
+        .registerMetricReader(
+            PeriodicMetricReader.builder(exporter).setInterval(Duration.ofSeconds(10)).build())
+        .build();
+    OpenTelemetry openTelemetry = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+
+    // 2. Create the GcpFallbackOpenTelemetry object with the SDK.
+    GcpFallbackOpenTelemetry fallbackTelemetry = GcpFallbackOpenTelemetry.newBuilder()
+        .withSdk(openTelemetry)
+//        .disableMetrics(Collections.singletonList("call_status"))
+        .build();
+
+    // --- METRICS CONFIGURATION END ---
+
+    if (fallbackEnabled) {
+      // Create builders for both paths.
+      String targetEndpoint = "spanner.googleapis.com:443";
+      String dpTargetEndpoint = "google-c2p:///spanner.googleapis.com";
+
+      ChannelCredentials credentials = AltsChannelCredentials.create();
+
+
+      CallCredentials altsCallCredentials =
+            createHardBoundTokensCallCredentials(
+                ComputeEngineCredentials.create(),
+		ComputeEngineCredentials.GoogleAuthTransport.ALTS, null);
+      System.out.println("altsCallCredentials: " + altsCallCredentials);
+
+      ChannelCredentials channelCreds =
+          GoogleDefaultChannelCredentials.newBuilder()
+              .altsCallCredentials(altsCallCredentials)
+              .build();
+
+
+
+      ManagedChannelBuilder<?> dpBuilder = Grpc.newChannelBuilder(dpTargetEndpoint, channelCreds);
+//      ManagedChannelBuilder<?> dpBuilder = ManagedChannelBuilder.forTarget(dpTargetEndpoint);
+      ManagedChannelBuilder<?> cpBuilder = ManagedChannelBuilder.forTarget(targetEndpoint);
+
+
+      GcpFallbackChannelOptions.Builder eefOptionsBuilder = GcpFallbackChannelOptions.newBuilder()
+          .setPrimaryChannelName("directpath")
+          .setFallbackChannelName("cloudpath")
+          .setErrorRateThreshold(0.1f)
+          .setMinFailedCalls(1);
+
+      eefOptionsBuilder.setGcpFallbackOpenTelemetry(fallbackTelemetry);
+
+      GcpFallbackChannelOptions eefOptions = eefOptionsBuilder.build();
+
+      eefChannel = new GcpFallbackChannel(eefOptions, dpBuilder, cpBuilder);
+      logger.log(Level.INFO, "GcpFallbackChannel enabled with metrics.");
+
+      TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(
+          GrpcTransportChannel.create(eefChannel));
+      spannerOptionsBuilder.setChannelProvider(channelProvider);
+    } else {
+      logger.log(Level.INFO, "GcpFallbackChannel disabled. Using default channel provider. Metrics will not be exported.");
+    }
+
+    return spannerOptionsBuilder.build();
+}
+
+  public static void main(String[] args) throws InterruptedException, IOException {
     int numRequests = 1;
     boolean fallbackEnabled = false;
     for (String arg : args) {
@@ -74,7 +223,9 @@ public final class SimpleRequest {
     }
 
     // Hardcoded values to be replaced by the user
-    String projectId = "cloud-spanner-perf-testing";
+    String projectId1 = "cloud-spanner-perf-testing";
+    String projectId2 = "span-cloud-testing";
+    String projectId = projectId2;
     String instanceId = "kinsaurralde-test";
     String databaseId = "rain";
     int bytesPerCol = 1024;
@@ -89,33 +240,8 @@ public final class SimpleRequest {
             + " bytesPerCol: "
             + bytesPerCol);
 
-    String targetEndpoint = "spanner.googleapis.com:443";
-    String dpTargetEndpoint = "google-c2p:///spanner.googleapis.com";
-    String dpDevelTargetEndpoint = "google-c2p:///staging-wrenchworks.sandbox.googleapis.com";
-    ManagedChannelBuilder<?> dpBuilder = ManagedChannelBuilder.forTarget(dpDevelTargetEndpoint);
-    ManagedChannelBuilder<?> cpBuilder = ManagedChannelBuilder.forTarget(targetEndpoint);
-    logger.log(Level.INFO, "dpTargetEndpoint: " + dpTargetEndpoint);
-    logger.log(Level.INFO, "cpTargetEndpoint: " + targetEndpoint);
+    SpannerOptions spannerOptions = buildSpannerOptions(projectId, fallbackEnabled);
 
-    ManagedChannel eefChannel = null;
-    SpannerOptions.Builder spannerOptionsBuilder = SpannerOptions.newBuilder().setProjectId(projectId);
-
-    if (fallbackEnabled) {
-      GcpFallbackChannelOptions eefOptions =
-          GcpFallbackChannelOptions.newBuilder()
-              .setPrimaryChannelName("directpath")
-              .setFallbackChannelName("cloudpath")
-              .build();
-      eefChannel = new GcpFallbackChannel(eefOptions, dpBuilder, cpBuilder);
-      logger.log(Level.INFO, "GcpFallbackChannel enabled.");
-      TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(GrpcTransportChannel.create(eefChannel));
-      spannerOptionsBuilder.setChannelProvider(channelProvider);
-      spannerOptionsBuilder.enableGrpcGcpExtension(); // Enable gRPC-GCP extension
-    } else {
-      logger.log(Level.INFO, "GcpFallbackChannel disabled. Using default channel provider.");
-    }
-
-    SpannerOptions spannerOptions = spannerOptionsBuilder.build();
     logger.log(Level.INFO, "Using credentials: " + spannerOptions.getCredentials());
     Spanner spanner = spannerOptions.getService();
     logger.log(Level.INFO, "Is direct access enabled: " + spannerOptions.isEnableDirectAccess());
@@ -126,7 +252,7 @@ public final class SimpleRequest {
       DatabaseClient dbClient =
           spanner.getDatabaseClient(DatabaseId.of(projectId, instanceId, databaseId));
 
-            createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
+        //createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
       for (int i = 0; i < numRequests; i++) {
         insertOrUpdateRandomBytes(dbClient, i);
         Thread.sleep(1000);
@@ -148,4 +274,3 @@ public final class SimpleRequest {
     logger.log(Level.INFO, "Finished SimpleRequest");
   }
 }
-

@@ -62,6 +62,6 @@ maven.install(
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
-    strict_visibility = True,
+    strict_visibility = False,
 )
 use_repo(maven, "maven")

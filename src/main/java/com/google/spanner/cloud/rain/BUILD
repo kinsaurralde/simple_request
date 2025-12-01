@@ -8,7 +8,7 @@ java_binary(
     name = "simple_request",
     srcs = ["SimpleRequest.java"],
     main_class = "com.google.spanner.cloud.rain.SimpleRequest",
-#    jvm_flags = ["-verbose:class"],
+    jvm_flags = ["-Djava.net.preferIPv4Stack=true"],
     resources = [
         "//src/main/resources:META-INF/services/io.grpc.NameResolverProvider",
 	"//src/main/resources:META-INF/services/io.grpc.LoadBalancerProvider",
@@ -16,15 +16,9 @@ java_binary(
     ],
     runtime_deps = [
         "@maven//:com_google_protobuf_protobuf_java",
-        "@maven//:io_grpc_grpc_alts",
-#        "@maven//:io_grpc_grpc_census",
-        "@maven//:io_grpc_grpc_googleapis",
-        "@maven//:io_grpc_grpc_rls",
-        "@maven//:io_grpc_grpc_xds",
         "@maven//:org_conscrypt_conscrypt_openjdk",
     ],
     deps = [
-        "//:grpc_gcp_local",
         ":local_spanner_libs",
         "@maven//:com_google_api_gax",
         "@maven//:com_google_api_gax_grpc",
@@ -32,14 +26,14 @@ java_binary(
         "@maven//:com_google_cloud_google_cloud_servicedirectory",
         "@maven//:com_google_flogger_flogger",
         "@maven//:commons_cli_commons_cli",
-        "@maven//:io_grpc_grpc_alts",
-        "@maven//:io_grpc_grpc_rls",
-        "@maven//:io_grpc_grpc_xds",
         # "//third_party/grpc_api:grpc_api",
-	"@maven//:io_grpc_grpc_api",
         "@maven//:io_kubernetes_client_java",
         "@maven//:io_kubernetes_client_java_api",
         "@protobuf//java/core",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:io_opentelemetry_opentelemetry_sdk",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
+        "@maven//:com_google_cloud_opentelemetry_exporter_metrics",
     ],
 )
 
@@ -47,11 +41,13 @@ java_binary(
     name = "simple_request_maven",
     srcs = ["SimpleRequest.java"],
     main_class = "com.google.spanner.cloud.rain.SimpleRequest",
-    jvm_flags = ["-Djava.net.preferIPv4Stack=true"],
+    jvm_flags = [
+        "-Djava.net.preferIPv4Stack=true",
+    ],
     resources = [
         "//src/main/resources:META-INF/services/io.grpc.NameResolverProvider",
-	"//src/main/resources:META-INF/services/io.grpc.LoadBalancerProvider",
-        "//src/main/resources:logging",
+	    "//src/main/resources:META-INF/services/io.grpc.LoadBalancerProvider",
+        "//src/main/resources:logging.properties",
     ],
     runtime_deps = [
         "@maven//:com_google_protobuf_protobuf_java",
@@ -91,5 +87,12 @@ java_binary(
 	"@maven//:io_opencensus_opencensus_exporter_trace_stackdriver",
         "@maven//:com_google_api_grpc_proto_google_common_protos",
         "@maven//:io_opencensus_opencensus_contrib_grpc_metrics",
+
+	"@grpc-java//auth",
+	"@maven//:com_google_auth_google_auth_library_oauth2_http",
+	"@maven//:io_opentelemetry_opentelemetry_api",
+	"@maven//:io_opentelemetry_opentelemetry_sdk",
+	"@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
+	"@maven//:com_google_cloud_opentelemetry_exporter_metrics",
         ],
 )
