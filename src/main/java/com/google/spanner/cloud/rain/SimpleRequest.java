@@ -183,7 +183,6 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
 
 
       ManagedChannelBuilder<?> dpBuilder = Grpc.newChannelBuilder(dpTargetEndpoint, channelCreds);
-//      ManagedChannelBuilder<?> dpBuilder = ManagedChannelBuilder.forTarget(dpTargetEndpoint);
       ManagedChannelBuilder<?> cpBuilder = ManagedChannelBuilder.forTarget(targetEndpoint);
 
 
@@ -191,6 +190,7 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
           .setPrimaryChannelName("directpath")
           .setFallbackChannelName("cloudpath")
           .setErrorRateThreshold(0.1f)
+          .setPeriod(Duration.ofSeconds(10))
           .setMinFailedCalls(1);
 
       eefOptionsBuilder.setGcpFallbackOpenTelemetry(fallbackTelemetry);
