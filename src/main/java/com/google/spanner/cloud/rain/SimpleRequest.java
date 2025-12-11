@@ -168,7 +168,7 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
 
     if (fallbackEnabled) {
       // Create builders for both paths.
-      String targetEndpoint = "spanner.googleapis.com:443";
+      String targetEndpoint = "dns:///spanner.googleapis.com:443";
       String dpTargetEndpoint = "google-c2p:///spanner.googleapis.com";
 
       ChannelCredentials credentials = AltsChannelCredentials.create();
@@ -202,7 +202,7 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
 
       GcpFallbackChannelOptions eefOptions = eefOptionsBuilder.build();
 
-      eefChannel = new GcpFallbackChannel(eefOptions, cpBuilder, cpBuilder);
+      eefChannel = new GcpFallbackChannel(eefOptions, dpBuilder, cpBuilder);
       logger.log(Level.INFO, "GcpFallbackChannel enabled with metrics.");
 
       TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(
