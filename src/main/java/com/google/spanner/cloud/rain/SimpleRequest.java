@@ -21,7 +21,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-
+import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
+import com.google.api.gax.core.GaxProperties;
+import com.google.api.gax.rpc.ApiClientHeaderProvider;
+import com.google.api.gax.rpc.HeaderProvider;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.api.gax.grpc.GrpcTransportChannel;
@@ -37,6 +40,9 @@ import com.google.api.gax.grpc.GrpcTransportChannel;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+
+import com.google.cloud.ServiceOptions;
+
 
 import io.grpc.Grpc;
 import io.grpc.alts.AltsChannelCredentials;
@@ -61,6 +67,9 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import java.time.Duration;
 import com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
+
+import java.util.logging.LogManager;
+import java.io.InputStream;
 
 /** */
 public final class SimpleRequest {
@@ -101,10 +110,10 @@ public final class SimpleRequest {
             .build();
     try {
       dbClient.write(Arrays.asList(mutation));
+      logger.log(Level.INFO, "Finished writing random bytes to key " + Integer.toString(i));
     } catch (Exception e) {
       logger.log(Level.INFO, "Exception during insertOrUpdateRandomBytes: " + e.getCause().getMessage());
     }
-    logger.log(Level.INFO, "Finished writing random bytes to key " + Integer.toString(i));
   }
 
 
@@ -133,9 +142,6 @@ public final class SimpleRequest {
     }
 
 
-
-
-
 /**
   * Builds the SpannerOptions, configuring the GcpFallbackChannel if enabled.
   */
@@ -156,7 +162,6 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
     // 2. Create the GcpFallbackOpenTelemetry object with the SDK.
     GcpFallbackOpenTelemetry fallbackTelemetry = GcpFallbackOpenTelemetry.newBuilder()
         .withSdk(openTelemetry)
-//        .disableMetrics(Collections.singletonList("call_status"))
         .build();
 
     // --- METRICS CONFIGURATION END ---
@@ -197,7 +202,7 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
 
       GcpFallbackChannelOptions eefOptions = eefOptionsBuilder.build();
 
-      eefChannel = new GcpFallbackChannel(eefOptions, dpBuilder, cpBuilder);
+      eefChannel = new GcpFallbackChannel(eefOptions, cpBuilder, cpBuilder);
       logger.log(Level.INFO, "GcpFallbackChannel enabled with metrics.");
 
       TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(
@@ -211,6 +216,19 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
 }
 
   public static void main(String[] args) throws InterruptedException, IOException {
+//     try {
+//     InputStream configFile = SimpleRequest.class.getClassLoader().getResourceAsStream("logging.properties");
+//     if (configFile != null) {
+//         LogManager.getLogManager().readConfiguration(configFile);
+//         System.out.println("Successfully loaded logging configuration from logging.properties");
+//     } else {
+//         System.err.println("CRITICAL: Could not find logging.properties in classpath!");
+//     }
+// } catch (Exception e) {
+//     System.err.println("CRITICAL: Error loading logging configuration: " + e.getMessage());
+//     e.printStackTrace();
+// }
+
     int numRequests = 1;
     boolean fallbackEnabled = false;
     for (String arg : args) {
@@ -252,7 +270,7 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
       DatabaseClient dbClient =
           spanner.getDatabaseClient(DatabaseId.of(projectId, instanceId, databaseId));
 
-        //createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
+        // createTableIfNotExists(dbAdminClient, instanceId, databaseId, 1);
       for (int i = 0; i < numRequests; i++) {
         insertOrUpdateRandomBytes(dbClient, i);
         Thread.sleep(1000);

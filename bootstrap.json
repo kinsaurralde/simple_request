@@ -1,0 +1,35 @@
+{
+  "xds_servers": [
+    {
+      "server_uri": "127.0.0.1:443",
+      "channel_creds": [
+        {
+          "type": "insecure"
+        }
+      ],
+      "server_features": ["xds_v3"]
+    }
+  ],
+  "authorities": {
+    "traffic-director-c2p.xds.googleapis.com": {
+      "xds_servers": [
+        {
+          "server_uri": "127.0.0.1:443",
+          "channel_creds": [
+            {
+              "type": "insecure"
+            }
+          ],
+          "server_features": ["xds_v3"]
+        }
+      ]
+    }
+  },
+  "node": {
+    "id": "test-node",
+    "cluster": "test-cluster",
+    "locality": {
+      "zone": "us-central1-a"
+    }
+  }
+}

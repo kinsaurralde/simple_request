@@ -5,13 +5,13 @@ java_import(
 )
 
 java_binary(
-    name = "simple_request",
+    name = "simple_request_local_client",
     srcs = ["SimpleRequest.java"],
     main_class = "com.google.spanner.cloud.rain.SimpleRequest",
     jvm_flags = ["-Djava.net.preferIPv4Stack=true"],
     resources = [
         "//src/main/resources:META-INF/services/io.grpc.NameResolverProvider",
-	"//src/main/resources:META-INF/services/io.grpc.LoadBalancerProvider",
+	    "//src/main/resources:META-INF/services/io.grpc.LoadBalancerProvider",
         "//src/main/resources:logging",
     ],
     runtime_deps = [
@@ -34,15 +34,17 @@ java_binary(
         "@maven//:io_opentelemetry_opentelemetry_sdk",
         "@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
         "@maven//:com_google_cloud_opentelemetry_exporter_metrics",
+        "@maven//:com_google_cloud_google_cloud_core",
     ],
 )
 
 java_binary(
-    name = "simple_request_maven",
+    name = "simple_request_maven_client",
     srcs = ["SimpleRequest.java"],
     main_class = "com.google.spanner.cloud.rain.SimpleRequest",
     jvm_flags = [
         "-Djava.net.preferIPv4Stack=true",
+        #"-Djava.util.logging.config.file=logging.properties",
     ],
     resources = [
         "//src/main/resources:META-INF/services/io.grpc.NameResolverProvider",
@@ -87,6 +89,7 @@ java_binary(
 	"@maven//:io_opencensus_opencensus_exporter_trace_stackdriver",
         "@maven//:com_google_api_grpc_proto_google_common_protos",
         "@maven//:io_opencensus_opencensus_contrib_grpc_metrics",
+        "@maven//:com_google_cloud_google_cloud_core",
 
 	"@grpc-java//auth",
 	"@maven//:com_google_auth_google_auth_library_oauth2_http",
