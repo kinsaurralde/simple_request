@@ -20,6 +20,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.time.Instant;
 
 import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
 import com.google.api.gax.core.GaxProperties;
@@ -100,13 +101,13 @@ public final class SimpleRequest {
 
   public static void insertOrUpdateRandomBytes(DatabaseClient dbClient, int i) {
     Random random = new Random();
-
+    Instant currentTimestamp = Instant.now();
     Mutation mutation =
         Mutation.newInsertOrUpdateBuilder("LargeColumns")
             .set("Key")
             .to(i)
             .set("Col0")
-            .to("test_string 9/8 18:05")
+            .to(currentTimestamp.toString())
             .build();
     try {
       dbClient.write(Arrays.asList(mutation));
@@ -194,9 +195,9 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
       GcpFallbackChannelOptions.Builder eefOptionsBuilder = GcpFallbackChannelOptions.newBuilder()
           .setPrimaryChannelName("directpath")
           .setFallbackChannelName("cloudpath")
-          .setErrorRateThreshold(0.1f)
-          .setPeriod(Duration.ofSeconds(10))
-          .setMinFailedCalls(1);
+          .setErrorRateThreshold(1f)
+          .setPeriod(Duration.ofSeconds(60))
+          .setMinFailedCalls(3);
 
       eefOptionsBuilder.setGcpFallbackOpenTelemetry(fallbackTelemetry);
 

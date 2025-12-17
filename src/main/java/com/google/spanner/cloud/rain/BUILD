@@ -97,5 +97,6 @@ java_binary(
 	"@maven//:io_opentelemetry_opentelemetry_sdk",
 	"@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
 	"@maven//:com_google_cloud_opentelemetry_exporter_metrics",
+    "@grpc-java//netty",
         ],
 )
