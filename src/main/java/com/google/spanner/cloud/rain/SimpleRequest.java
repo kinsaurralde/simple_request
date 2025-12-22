@@ -72,6 +72,15 @@ import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import java.util.logging.LogManager;
 import java.io.InputStream;
 
+import com.google.api.gax.grpc.GrpcInterceptorProvider;
+import io.grpc.ClientInterceptor;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.MethodDescriptor;
+import java.util.Collections;
+import java.util.List;
+
 /** */
 public final class SimpleRequest {
   private static final Logger logger = Logger.getLogger(SimpleRequest.class.getName());
@@ -113,7 +122,7 @@ public final class SimpleRequest {
       dbClient.write(Arrays.asList(mutation));
       logger.log(Level.INFO, "Finished writing random bytes to key " + Integer.toString(i));
     } catch (Exception e) {
-      logger.log(Level.INFO, "Exception during insertOrUpdateRandomBytes: " + e.getCause().getMessage());
+      logger.log(Level.INFO, "Exception during insertOrUpdateRandomBytes to key " + Integer.toString(i) + ": " + e.getCause().getMessage());
     }
   }
 
@@ -195,8 +204,8 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
       GcpFallbackChannelOptions.Builder eefOptionsBuilder = GcpFallbackChannelOptions.newBuilder()
           .setPrimaryChannelName("directpath")
           .setFallbackChannelName("cloudpath")
-          .setErrorRateThreshold(1f)
-          .setPeriod(Duration.ofSeconds(60))
+          .setErrorRateThreshold(0.1f)
+          .setPeriod(Duration.ofSeconds(10))
           .setMinFailedCalls(3);
 
       eefOptionsBuilder.setGcpFallbackOpenTelemetry(fallbackTelemetry);
@@ -204,32 +213,37 @@ public static SpannerOptions buildSpannerOptions(String projectId, boolean fallb
       GcpFallbackChannelOptions eefOptions = eefOptionsBuilder.build();
 
       eefChannel = new GcpFallbackChannel(eefOptions, dpBuilder, cpBuilder);
-      logger.log(Level.INFO, "GcpFallbackChannel enabled with metrics.");
+      logger.log(Level.INFO, "GcpFallbackChannel enabled at application level with metrics.");
 
       TransportChannelProvider channelProvider = FixedTransportChannelProvider.create(
           GrpcTransportChannel.create(eefChannel));
       spannerOptionsBuilder.setChannelProvider(channelProvider);
     } else {
-      logger.log(Level.INFO, "GcpFallbackChannel disabled. Using default channel provider. Metrics will not be exported.");
+      logger.log(Level.INFO, "GcpFallbackChannel disabled at application level. Using default channel provider.");
     }
+    spannerOptionsBuilder.setOpenTelemetry(openTelemetry);
+    spannerOptionsBuilder.setNumChannels(1);
+
+    // // Replace the incorrect 'setCallContextConfigurator' block with this:
+    // spannerOptionsBuilder.setInterceptorProvider(
+    //     new GrpcInterceptorProvider() {
+    //       @Override
+    //       public List<ClientInterceptor> getInterceptors() {
+    //         return Collections.singletonList(new ClientInterceptor() {
+    //           @Override
+    //           public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
+    //               MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+    //             // Use withoutWaitForReady() to disable "wait for ready" (Fail Fast)
+    //             return next.newCall(method, callOptions.withoutWaitForReady());
+    //           }
+    //         });
+    //       }
+    //     });
 
     return spannerOptionsBuilder.build();
 }
 
   public static void main(String[] args) throws InterruptedException, IOException {
-//     try {
-//     InputStream configFile = SimpleRequest.class.getClassLoader().getResourceAsStream("logging.properties");
-//     if (configFile != null) {
-//         LogManager.getLogManager().readConfiguration(configFile);
-//         System.out.println("Successfully loaded logging configuration from logging.properties");
-//     } else {
-//         System.err.println("CRITICAL: Could not find logging.properties in classpath!");
-//     }
-// } catch (Exception e) {
-//     System.err.println("CRITICAL: Error loading logging configuration: " + e.getMessage());
-//     e.printStackTrace();
-// }
-
     int numRequests = 1;
     boolean fallbackEnabled = false;
     for (String arg : args) {

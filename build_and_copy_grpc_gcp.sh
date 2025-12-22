@@ -4,7 +4,7 @@
 pushd grpc-gcp-java/grpc-gcp
 
 # Fix the missing semicolon in GcpFallbackChannel.java
-sed -i 's/System.out.println("Make call to primaryChannel")/System.out.println("Make call to primaryChannel");/' src/main/java/com/google/cloud/grpc/fallback/GcpFallbackChannel.java
+#sed -i 's/System.out.println("Make call to primaryChannel")/System.out.println("Make call to primaryChannel");/' src/main/java/com/google/cloud/grpc/fallback/GcpFallbackChannel.java
 
 # Build grpc-gcp
 ./gradlew build
